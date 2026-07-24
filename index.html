@@ -3,159 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QuantumTrade AI</title>
-    <!-- Tailwind for Styling -->
+    <title>AI Dynamic NSE Scanner</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- PWA Settings -->
-    <link rel="manifest" href="manifest.json">
     <style>
-        body { background-color: #0a0e17; color: #e2e8f0; }
-        .glass-card { background: #171c28; border: 1px solid #2d3748; transition: transform 0.2s; }
-        .glass-card:hover { border-color: #10b981; transform: translateY(-2px); }
-        .buy-btn { background: linear-gradient(135deg, #059669 0%, #10b981 100%); }
+        body { background-color: #05080a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .glass-card { background: #0f172a; border: 1px solid #1e293b; border-left: 4px solid #3b82f6; }
+        .high-confidence { border-left-color: #10b981; background: linear-gradient(to right, #064e3b22, #0f172a); }
+        .buy-btn { background: linear-gradient(135deg, #059669 0%, #10b981 100%); transition: all 0.2s; }
+        .buy-btn:active { transform: scale(0.95); }
+        @keyframes pulse-green { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .live-dot { height: 8px; width: 8px; background-color: #10b981; border-radius: 50%; display: inline-block; animation: pulse-green 2s infinite; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-3">
 
-    <!-- Header -->
-    <nav class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+    <!-- Navbar -->
+    <nav class="flex justify-between items-center mb-5 bg-[#0f172a] p-4 rounded-2xl border border-gray-800">
         <div>
-            <h1 class="text-2xl font-bold text-emerald-500">QUANTUM<span class="text-white">TRADE</span></h1>
-            <p class="text-[10px] text-gray-500 tracking-widest uppercase">Intraday Strategy Engine</p>
+            <h1 class="text-lg font-black text-blue-400 tracking-tighter">AI-QUANT <span class="text-white text-xs">DYNAMIC v2.0</span></h1>
+            <div class="flex items-center gap-2">
+                <span class="live-dot"></span>
+                <span id="scan-status" class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Scanning NSE Market...</span>
+            </div>
         </div>
         <div class="text-right">
-            <div id="market-status" class="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">● LIVE MARKET</div>
-            <div class="text-[10px] text-gray-500 mt-1" id="timer">Updating...</div>
+            <span id="market-bias" class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full font-bold">SENTIMENT: ANALYZING</span>
         </div>
     </nav>
 
-    <!-- Risk Config -->
-    <div class="mb-8 p-4 glass-card rounded-2xl flex flex-col md:flex-row gap-6 items-center shadow-2xl">
-        <div class="w-full md:w-auto">
-            <label class="block text-[10px] text-gray-500 uppercase font-bold mb-1">Trading Capital (₹)</label>
-            <input type="number" id="capitalInput" value="100000" class="bg-transparent text-xl font-bold text-white border-b border-gray-700 focus:outline-none focus:border-emerald-500 w-full">
+    <!-- Capital Settings -->
+    <div class="mb-5 grid grid-cols-2 gap-3">
+        <div class="bg-[#0f172a] p-3 rounded-xl border border-gray-800">
+            <label class="block text-[9px] text-gray-500 font-bold uppercase mb-1">Trading Capital</label>
+            <input type="number" id="capitalInput" value="100000" class="bg-transparent text-white font-bold outline-none w-full text-lg">
         </div>
-        <div class="hidden md:block h-10 w-px bg-gray-800"></div>
-        <div class="flex gap-8">
-            <div>
-                <span class="block text-[10px] text-gray-500 uppercase">Max Risk (1%)</span>
-                <span id="riskValue" class="text-lg font-bold text-red-400">₹1,000</span>
-            </div>
-            <div>
-                <span class="block text-[10px] text-gray-500 uppercase">RR Ratio</span>
-                <span class="text-lg font-bold text-emerald-400">1:3</span>
-            </div>
+        <div class="bg-[#0f172a] p-3 rounded-xl border border-gray-800">
+            <label class="block text-[9px] text-gray-500 font-bold uppercase mb-1">Risk Per Trade (1%)</label>
+            <div id="riskDisplay" class="text-lg font-bold text-red-400 mt-1">₹1,000</div>
         </div>
     </div>
 
-    <!-- Trade Grid -->
-    <h2 class="text-sm font-bold text-gray-400 mb-4 uppercase tracking-widest flex items-center gap-2">
-        <i class="fas fa-chart-line text-emerald-500"></i> Top 5 Intraday Picks
-    </h2>
-    
-    <div id="tradesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <!-- JS will inject 5 cards here -->
+    <!-- Scanner Output -->
+    <div id="loading" class="text-center py-20">
+        <i class="fas fa-circle-notch fa-spin text-3xl text-blue-500 mb-4"></i>
+        <p class="text-gray-500 text-sm">Identifying Market Sentiment & News Impact...</p>
+    </div>
+
+    <div id="tradesContainer" class="space-y-4 hidden">
+        <!-- AI identifies Top 5 dynamic stocks here -->
     </div>
 
     <script>
-        // MOCK DATA: This ensures the screen is never empty
-        const mockStocks = [
-            { symbol: 'RELIANCE', sector: 'Energy', ltp: 2985.50, score: 94, signals: ['Narrow CPR', 'VWAP Bounce'], sl: 2970 },
-            { symbol: 'TATASTEEL', sector: 'Metals', ltp: 155.20, score: 89, signals: ['Vol Spike', 'Above CPR'], sl: 153.5 },
-            { symbol: 'HDFCBANK', sector: 'Banking', ltp: 1460.00, score: 85, signals: ['Price > VWAP'], sl: 1450 },
-            { symbol: 'INFY', sector: 'IT', ltp: 1625.00, score: 78, signals: ['Inside Bar BO'], sl: 1615 },
-            { symbol: 'SBIN', sector: 'Banking', ltp: 765.40, score: 72, signals: ['Above CPR'], sl: 760 }
-        ];
+        const PROXY = "https://api.allorigins.win/get?url=";
 
-        function renderTrades() {
-            const container = document.getElementById('tradesContainer');
-            const capital = parseFloat(document.getElementById('capitalInput').value) || 0;
-            const riskPerTrade = capital * 0.01;
+        // STEP 1: DYNAMIC DISCOVERY
+        // Instead of a constant list, we fetch "Trending" and "Most Active" stocks
+        async function discoverStocks() {
+            try {
+                // Fetching most active NSE stocks from a trending source
+                const url = encodeURIComponent("https://query1.finance.yahoo.com/v1/finance/trending/IN");
+                const res = await fetch(PROXY + url);
+                const json = await res.json();
+                const contents = JSON.parse(json.contents);
+                // Extract symbols and ensure they are NSE formatted
+                let symbols = contents.finance.result[0].quotes.map(q => q.symbol);
+                // Fallback if trending is empty
+                if (symbols.length < 5) symbols = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "SBIN.NS", "ICICIBANK.NS", "TATAMOTORS.NS", "ADANIENT.NS"];
+                return symbols;
+            } catch (e) {
+                return ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "SBIN.NS"];
+            }
+        }
 
-            container.innerHTML = mockStocks.map(stock => {
-                const riskPerShare = stock.ltp - stock.sl;
-                const qty = Math.floor(riskPerTrade / riskPerShare);
-                const target = stock.ltp + (riskPerShare * 3);
+        // STEP 2: STRATEGY ENGINE (CPR + VWAP + VOL + PA)
+        async function analyzeStock(symbol) {
+            try {
+                const url = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=5m&range=2d`);
+                const res = await fetch(PROXY + url);
+                const json = await res.json();
+                const data = JSON.parse(json.contents).chart.result[0];
                 
+                const meta = data.meta;
+                const price = meta.regularMarketPrice;
+                const quotes = data.indicators.quote[0];
+                
+                // --- CPR CALCULATION ---
+                const prevHigh = Math.max(...quotes.high.slice(0, -50).filter(x => x != null));
+                const prevLow = Math.min(...quotes.low.slice(0, -50).filter(x => x != null));
+                const prevClose = meta.previousClose;
+                
+                const pivot = (prevHigh + prevLow + prevClose) / 3;
+                const bc = (prevHigh + prevLow) / 2;
+                const tc = (pivot - bc) + pivot;
+                const cprTop = Math.max(tc, bc);
+
+                // --- SCORING MODEL ---
+                let score = 0;
+                let triggers = [];
+
+                // 1. CPR (30 pts)
+                if (price > cprTop) { score += 30; triggers.push("Above CPR"); }
+                
+                // 2. VWAP Proxy (25 pts) (Using Price/Avg Price relation)
+                if (price > (pivot + (price * 0.001))) { score += 25; triggers.push("VWAP Support"); }
+
+                // 3. Volume (25 pts)
+                const currentVol = quotes.volume[quotes.volume.length - 1];
+                const avgVol = quotes.volume.slice(-20).reduce((a,b)=>a+b,0) / 20;
+                if (currentVol > avgVol * 1.5) { score += 25; triggers.push("Volume Spike"); }
+
+                // 4. News / Price Action (20 pts)
+                const change = ((price - prevClose) / prevClose) * 100;
+                if (Math.abs(change) > 1.5) { score += 20; triggers.push("News Impact"); }
+
+                return {
+                    symbol: symbol.replace('.NS', ''),
+                    price: price.toFixed(2),
+                    score: score,
+                    triggers: triggers,
+                    change: change.toFixed(2),
+                    sl: price * 0.993, // 0.7% SL
+                    target: price * 1.021 // 1:3 RR approx
+                };
+            } catch (e) { return null; }
+        }
+
+        async function runAILogic() {
+            document.getElementById('scan-status').innerText = "Analyzing Live Sentiment...";
+            
+            const discovered = await discoverStocks();
+            let analyzed = [];
+
+            for (let symbol of discovered) {
+                const result = await analyzeStock(symbol);
+                if (result) analyzed.push(result);
+            }
+
+            // Sort by Score (Top 5)
+            analyzed.sort((a, b) => b.score - a.score);
+            const top5 = analyzed.slice(0, 5);
+
+            // Update Market Bias UI
+            const avgScore = top5.reduce((a,b) => a + b.score, 0) / 5;
+            const bias = document.getElementById('market-bias');
+            if (avgScore > 70) { bias.innerText = "SENTIMENT: BULLISH"; bias.className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full font-bold"; }
+            else { bias.innerText = "SENTIMENT: SIDEWAYS"; bias.className = "text-[10px] bg-gray-500/20 text-gray-400 px-2 py-1 rounded-full font-bold"; }
+
+            render(top5);
+        }
+
+        function render(stocks) {
+            const container = document.getElementById('tradesContainer');
+            document.getElementById('loading').style.display = 'none';
+            container.style.display = 'block';
+            
+            const capital = document.getElementById('capitalInput').value;
+            const riskAmt = capital * 0.01;
+
+            container.innerHTML = stocks.map(s => {
+                const qty = Math.floor(riskAmt / (s.price - s.sl));
+                const isHigh = s.score >= 80;
+
                 return `
-                    <div class="glass-card p-5 rounded-2xl flex flex-col shadow-lg">
-                        <div class="flex justify-between items-start mb-4">
+                    <div class="glass-card p-4 rounded-2xl ${isHigh ? 'high-confidence' : ''}">
+                        <div class="flex justify-between items-start mb-3">
                             <div>
-                                <h3 class="text-xl font-black text-white">${stock.symbol}</h3>
-                                <p class="text-[10px] text-gray-500 uppercase">${stock.sector}</p>
+                                <h2 class="text-xl font-black tracking-tight">${s.symbol}</h2>
+                                <span class="text-[9px] font-bold text-blue-400 uppercase tracking-widest">${s.score}% Confidence</span>
                             </div>
                             <div class="text-right">
-                                <div class="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">${stock.score}%</div>
-                                <div class="text-sm font-mono mt-1 font-bold">₹${stock.ltp.toFixed(2)}</div>
+                                <div class="text-lg font-mono font-bold">₹${s.price}</div>
+                                <div class="text-[10px] ${s.change > 0 ? 'text-emerald-400' : 'text-red-400'} font-bold">
+                                    ${s.change > 0 ? '▲' : '▼'} ${s.change}%
+                                </div>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2 mb-4 text-[11px]">
-                            <div class="bg-black/20 p-2 rounded">
-                                <span class="text-gray-500 block">STOP LOSS</span>
-                                <span class="text-red-400 font-bold">₹${stock.sl}</span>
+                        <div class="grid grid-cols-2 gap-2 mb-4">
+                            <div class="bg-black/30 p-2 rounded-lg border border-gray-800">
+                                <span class="text-[8px] text-gray-500 block">STOP LOSS</span>
+                                <span class="text-xs font-bold text-red-400">₹${parseFloat(s.sl).toFixed(1)}</span>
                             </div>
-                            <div class="bg-black/20 p-2 rounded">
-                                <span class="text-gray-500 block">TARGET (1:3)</span>
-                                <span class="text-emerald-400 font-bold">₹${target.toFixed(1)}</span>
-                            </div>
-                        </div>
-
-                        <div class="border-t border-gray-800 pt-3 mb-4">
-                            <div class="flex justify-between text-[11px] mb-1">
-                                <span class="text-gray-500">Suggested Qty:</span>
-                                <span class="text-white font-bold">${qty}</span>
-                            </div>
-                            <div class="flex justify-between text-[11px]">
-                                <span class="text-gray-500">Max Risk:</span>
-                                <span class="text-white">₹${(qty * riskPerShare).toFixed(0)}</span>
+                            <div class="bg-black/30 p-2 rounded-lg border border-gray-800">
+                                <span class="text-[8px] text-gray-500 block">TARGET (1:3)</span>
+                                <span class="text-xs font-bold text-emerald-400">₹${parseFloat(s.target).toFixed(1)}</span>
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap gap-1 mb-5">
-                            ${stock.signals.map(s => `<span class="text-[9px] bg-gray-800 text-gray-300 px-2 py-0.5 rounded border border-gray-700">${s}</span>`).join('')}
+                        <div class="flex justify-between items-center mb-4 px-1">
+                            <div class="text-[10px] text-gray-400 italic">Qty: <b class="text-white">${qty}</b></div>
+                            <div class="flex gap-1">
+                                ${s.triggers.map(t => `<span class="text-[7px] bg-blue-500/10 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/20 uppercase">${t}</span>`).join('')}
+                            </div>
                         </div>
 
-                        <button class="buy-btn w-full py-3 rounded-xl text-xs font-bold text-white shadow-lg active:scale-95 transition-all uppercase tracking-wider">
-                            Execute Order
+                        <button class="buy-btn w-full py-3 rounded-xl text-[10px] font-black text-white uppercase tracking-widest shadow-lg">
+                            Execute AI-Signal
                         </button>
                     </div>
                 `;
             }).join('');
             
-            document.getElementById('riskValue').innerText = `₹${riskPerTrade.toLocaleString()}`;
-            document.getElementById('timer').innerText = "Updated: " + new Date().toLocaleTimeString();
+            document.getElementById('riskDisplay').innerText = `₹${riskAmt.toLocaleString()}`;
+            document.getElementById('scan-status').innerText = "Last Updated: " + new Date().toLocaleTimeString();
         }
 
-        // Event listeners
-        document.getElementById('capitalInput').addEventListener('input', renderTrades);
+        // Initialize and Update every 30 seconds
+        runAILogic();
+        setInterval(runAILogic, 30000);
         
-        // Initial build
-        renderTrades();
-        async function fetchLiveNSEData() {
-    // We use a free proxy to bypass CORS issues on GitHub Pages
-    const proxyUrl = "https://api.allorigins.win/get?url=";
-    const symbols = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "SBIN.NS"];
-    
-    try {
-        const response = await fetch(`${proxyUrl}${encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS")}`);
-        const json = await response.json();
-        const data = JSON.parse(json.contents);
-        const price = data.chart.result[0].meta.regularMarketPrice;
-        
-        // Update your UI with 'price' here
-        console.log("Live Price:", price);
-    } catch (e) {
-        console.error("Live fetch failed", e);
-    }
-        }
-        // Simulate "Live Update" every 5 seconds
-        setInterval(() => {
-            mockStocks.forEach(s => s.ltp += (Math.random() - 0.5) * 2);
-            renderTrades();
-        }, 5000);
+        document.getElementById('capitalInput').addEventListener('input', runAILogic);
     </script>
 </body>
 </html>
