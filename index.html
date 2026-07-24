@@ -134,7 +134,23 @@
         
         // Initial build
         renderTrades();
+        async function fetchLiveNSEData() {
+    // We use a free proxy to bypass CORS issues on GitHub Pages
+    const proxyUrl = "https://api.allorigins.win/get?url=";
+    const symbols = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "SBIN.NS"];
+    
+    try {
+        const response = await fetch(`${proxyUrl}${encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS")}`);
+        const json = await response.json();
+        const data = JSON.parse(json.contents);
+        const price = data.chart.result[0].meta.regularMarketPrice;
         
+        // Update your UI with 'price' here
+        console.log("Live Price:", price);
+    } catch (e) {
+        console.error("Live fetch failed", e);
+    }
+        }
         // Simulate "Live Update" every 5 seconds
         setInterval(() => {
             mockStocks.forEach(s => s.ltp += (Math.random() - 0.5) * 2);
